@@ -1,20 +1,21 @@
 SpeakTypesSettings = {
-  none = {},
-  say = { speakType = MessageModes.Say, color = '#FFFF00' },
-  whisper = { speakType = MessageModes.Whisper, color = '#FFFF00' },
-  yell = { speakType = MessageModes.Yell, color = '#FFFF00' },
+  none = { onMap = true },
+  say = { speakType = MessageModes.Say, color = '#FFFF00', onMap = true },
+  whisper = { speakType = MessageModes.Whisper, color = '#FFFF00', onMap = true },
+  yell = { speakType = MessageModes.Yell, color = '#FFFF00', onMap = true },
   broadcast = { speakType = MessageModes.GamemasterBroadcast, color = '#F55E5E' },
   private = { speakType = MessageModes.PrivateTo, color = '#5FF7F7', private = true },
   privateRed = { speakType = MessageModes.GamemasterTo, color = '#F55E5E', private = true },
   privatePlayerToPlayer = { speakType = MessageModes.PrivateTo, color = '#9F9DFD', private = true },
   privatePlayerToNpc = { speakType = MessageModes.NpcTo, color = '#9F9DFD', private = true, npcChat = true },
-  privateNpcToPlayer = { speakType = MessageModes.NpcFrom, color = '#5FF7F7', private = true, npcChat = true },
+  privateNpcToPlayer = { speakType = MessageModes.NpcFrom, color = '#5FF7F7', private = true, npcChat = true, onMap = true},
   channelYellow = { speakType = MessageModes.Channel, color = '#FFFF00' },
   channelWhite = { speakType = MessageModes.ChannelManagement, color = '#FFFFFF' },
   channelRed = { speakType = MessageModes.GamemasterChannel, color = '#F55E5E' },
   channelOrange = { speakType = MessageModes.ChannelHighlight, color = '#FE6500' },
-  monsterSay = { speakType = MessageModes.MonsterSay, color = '#FE6500', hideInConsole = true},
-  monsterYell = { speakType = MessageModes.MonsterYell, color = '#FE6500', hideInConsole = true},
+  monsterSay = { speakType = MessageModes.MonsterSay, color = '#FE6500', hideInConsole = true, onMap = true},
+  monsterSay44 = { speakType = 44, color = '#FE6500', hideInConsole = true, onMap = true},
+  monsterYell = { speakType = MessageModes.MonsterYell, color = '#FE6500', hideInConsole = true, onMap = true},
   rvrAnswerFrom = { speakType = MessageModes.RVRAnswer, color = '#FE6500' },
   rvrAnswerTo = { speakType = MessageModes.RVRAnswer, color = '#FE6500' },
   rvrContinue = { speakType = MessageModes.RVRContinue, color = '#FFFF00' },
@@ -34,6 +35,8 @@ SpeakTypes = {
   [MessageModes.GamemasterChannel] = SpeakTypesSettings.channelRed,
   [MessageModes.ChannelHighlight] = SpeakTypesSettings.channelOrange,
   [MessageModes.MonsterSay] = SpeakTypesSettings.monsterSay,
+  [46] = SpeakTypesSettings.channelRed,
+  [44] = SpeakTypesSettings.monsterSay44,
   [MessageModes.MonsterYell] = SpeakTypesSettings.monsterYell,
   [MessageModes.RVRChannel] = SpeakTypesSettings.channelWhite,
   [MessageModes.RVRContinue] = SpeakTypesSettings.rvrContinue,
@@ -72,6 +75,7 @@ serverTab = nil
 violationsChannelId = nil
 violationWindow = nil
 violationReportTab = nil
+chatEscapeBound = false
 ignoredChannels = {}
 filters = {}
 
@@ -174,15 +178,20 @@ function toggleChat()
   end
 end
 
+function chatToggleFunc()
+  if consoleTextEdit:isActive() then
+    consoleToggleChat:setChecked(not consoleToggleChat:isChecked())
+  end
+end
+
 function enableChat()
   local gameInterface = modules.game_interface
 
   consoleTextEdit:setVisible(true)
   consoleTextEdit:setText("")
 
-  g_keyboard.unbindKeyUp("Space")
-  g_keyboard.unbindKeyUp("Enter")
-  g_keyboard.unbindKeyUp("Escape")
+  g_keyboard.unbindKeyUp("Space", chatToggleFunc)
+  g_keyboard.unbindKeyUp("Enter", chatToggleFunc)
 
   gameInterface.unbindWalkKey("W")
   gameInterface.unbindWalkKey("D")
@@ -203,15 +212,13 @@ function disableChat()
   consoleTextEdit:setVisible(false)
   consoleTextEdit:setText("")
 
-  local quickFunc = function()
-    if consoleToggleChat:isChecked() then
-      consoleToggleChat:setChecked(false)
-    end
-    enableChat()
+  g_keyboard.bindKeyUp("Space", chatToggleFunc)
+  g_keyboard.bindKeyUp("Enter", chatToggleFunc)
+
+  if not chatEscapeBound then
+    g_keyboard.bindKeyUp("Escape", chatToggleFunc, consoleTextEdit)
+    chatEscapeBound = true
   end
-  g_keyboard.bindKeyUp("Space", quickFunc)
-  g_keyboard.bindKeyUp("Enter", quickFunc)
-  g_keyboard.bindKeyUp("Escape", quickFunc)
 
   gameInterface.bindWalkKey("W", North)
   gameInterface.bindWalkKey("D", East)
@@ -248,6 +255,10 @@ function terminate()
   g_keyboard.unbindKeyDown('Ctrl+O')
   g_keyboard.unbindKeyDown('Ctrl+E')
   g_keyboard.unbindKeyDown('Ctrl+H')
+
+  g_keyboard.unbindKeyUp("Escape", chatToggleFunc, consoleTextEdit)
+  g_keyboard.unbindKeyUp("Space", chatToggleFunc, consoleTextEdit)
+  g_keyboard.unbindKeyUp("Enter", chatToggleFunc, consoleTextEdit)
 
   saveCommunicationSettings()
 
@@ -1021,10 +1032,7 @@ function onTalk(name, level, mode, message, channelId, creaturePos)
     channelId = violationsChannelId
   end
 
-  if (mode == MessageModes.Say or mode == MessageModes.Whisper or mode == MessageModes.Yell or
-      mode == MessageModes.Spell or mode == MessageModes.MonsterSay or mode == MessageModes.MonsterYell or
-      mode == MessageModes.NpcFrom or mode == MessageModes.BarkLow or mode == MessageModes.BarkLoud or
-      mode == MessageModes.NpcFromStartBlock) and creaturePos then
+  if speaktype.onMap and creaturePos then
     local staticText = StaticText.create()
     -- Remove curly braces from screen message
     local staticMessage = message

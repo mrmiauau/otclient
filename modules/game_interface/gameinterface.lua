@@ -12,6 +12,7 @@ logoutWindow = nil
 exitWindow = nil
 bottomSplitter = nil
 limitedZoom = false
+viewFloor = -1
 currentViewMode = 0
 smartWalkDirs = {}
 smartWalkDir = nil
@@ -26,6 +27,7 @@ function init()
     onGameEnd = onGameEnd,
     onLoginAdvice = onLoginAdvice,
   }, true)
+  connect(LocalPlayer, { onPositionChange = levelSpyWalkHook })
 
   -- Call load AFTER game window has been created and 
   -- resized to a stable state, otherwise the saved 
@@ -64,6 +66,13 @@ function init()
   end
 end
 
+function levelSpyWalkHook(creature, newPos, oldPos) 
+  if creature == g_game.getLocalPlayer() and (viewFloor == -1 or newPos.z ~= oldPos.z) then
+    gameMapPanel:unlockVisibleFloor()
+    viewFloor = newPos.z
+  end
+end
+
 function bindKeys()
   gameRootPanel:setAutoRepeatDelay(200)
 
@@ -89,8 +98,12 @@ function bindKeys()
   g_keyboard.bindKeyPress('Ctrl+Numpad2', function() g_game.turn(South) changeWalkDir(South) end, gameRootPanel)
   g_keyboard.bindKeyPress('Ctrl+Numpad4', function() g_game.turn(West) changeWalkDir(West) end, gameRootPanel)
   g_keyboard.bindKeyPress('Escape', function() g_game.cancelAttackAndFollow() end, gameRootPanel)
+
   g_keyboard.bindKeyPress('Ctrl+=', function() gameMapPanel:zoomIn() end, gameRootPanel)
   g_keyboard.bindKeyPress('Ctrl+-', function() gameMapPanel:zoomOut() end, gameRootPanel)
+  g_keyboard.bindKeyPress('Ctrl+Shift+0', function() gameMapPanel:unlockVisibleFloor(); viewFloor = g_game.getLocalPlayer():getPosition().z end, gameRootPanel)
+  g_keyboard.bindKeyPress('Ctrl+Shift+=', function() viewFloor=viewFloor-1; gameMapPanel:lockVisibleFloor(viewFloor) end, gameRootPanel)
+  g_keyboard.bindKeyPress('Ctrl+Shift+-', function() viewFloor=viewFloor+1; gameMapPanel:lockVisibleFloor(viewFloor) end, gameRootPanel)
   g_keyboard.bindKeyDown('Ctrl+Q', function() tryLogout(false) end, gameRootPanel)
   g_keyboard.bindKeyDown('Ctrl+L', function() tryLogout(false) end, gameRootPanel)
   g_keyboard.bindKeyDown('Ctrl+W', function() g_map.cleanTexts() modules.game_textmessage.clearMessages() end, gameRootPanel)
@@ -124,12 +137,15 @@ function terminate()
 
   disconnect(gameLeftPanel, { onVisibilityChange = onLeftPanelVisibilityChange })
 
+  disconnect(LocalPlayer, { onPositionChange = levelSpyWalkHook })
+
   logoutButton:destroy()
   gameRootPanel:destroy()
 end
 
 function onGameStart()
   show()
+  viewFloor = -1
 
   -- open tibia has delay in auto walking
   if not g_game.isOfficialTibia() then

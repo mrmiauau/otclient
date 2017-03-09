@@ -26,6 +26,7 @@
 #include "tile.h"
 #include <framework/core/eventdispatcher.h>
 #include <framework/graphics/graphics.h>
+#include "luavaluecasts.h"
 
 LocalPlayer::LocalPlayer()
 {
@@ -55,6 +56,8 @@ LocalPlayer::LocalPlayer()
     m_regenerationTime = -1;
     m_offlineTrainingTime = -1;
     m_totalCapacity = -1;
+
+    m_autoWalkFlags = 0;
 }
 
 void LocalPlayer::lockWalk(int millis)
@@ -153,7 +156,7 @@ void LocalPlayer::cancelWalk(Otc::Direction direction)
             m_autoWalkContinueEvent->cancel();
         m_autoWalkContinueEvent = g_dispatcher.scheduleEvent([self]() {
             if(self->m_autoWalkDestination.isValid())
-                self->autoWalk(self->m_autoWalkDestination);
+                self->autoWalk(self->m_autoWalkDestination, self->m_autoWalkFlags);
         }, 500);
     }
 
@@ -164,7 +167,7 @@ void LocalPlayer::cancelWalk(Otc::Direction direction)
     callLuaField("onCancelWalk", direction);
 }
 
-bool LocalPlayer::autoWalk(const Position& destination)
+bool LocalPlayer::autoWalk(const Position& destination, int flags, bool manual)
 {
     bool tryKnownPath = false;
     if(destination != m_autoWalkDestination) {
@@ -180,7 +183,7 @@ bool LocalPlayer::autoWalk(const Position& destination)
 
     // try to find a path that we know
     if(tryKnownPath || m_knownCompletePath) {
-        result = g_map.findPath(m_position, destination, 50000, 0);
+        result = g_map.findPath(m_position, destination, 50000, flags);
         if(std::get<1>(result) == Otc::PathFindResultOk) {
             limitedPath = std::get<0>(result);
             // limit to 127 steps
@@ -192,7 +195,7 @@ bool LocalPlayer::autoWalk(const Position& destination)
 
     // no known path found, try to discover one
     if(limitedPath.empty()) {
-        result = g_map.findPath(m_position, destination, 50000, Otc::PathFindAllowNotSeenTiles);
+        result = g_map.findPath(m_position, destination, 50000, flags | Otc::PathFindAllowNotSeenTiles);
         if(std::get<1>(result) != Otc::PathFindResultOk) {
             callLuaField("onAutoWalkFail", std::get<1>(result));
             stopAutoWalk();
@@ -208,9 +211,31 @@ bool LocalPlayer::autoWalk(const Position& destination)
                 limitedPath.push_back(dir);
         }
     }
+    
+    m_lastAutoWalkPosition = m_position.translatedToDirections(limitedPath).back();
+
+    if(const TilePtr& tile = g_map.getTile(m_lastAutoWalkPosition)) {
+        int floorChange = tile->getFloorChange();
+        if (floorChange != Otc::FloorChangeNone && (floorChange & Otc::FloorChangeAction)) {
+            Position currentPos = m_position;
+            if (m_position.isInRange(m_lastAutoWalkPosition, 1, 1)) {
+                callLuaField("onAutoWalkAction", m_lastAutoWalkPosition, floorChange);
+                stopAutoWalk();
+                return true;
+            }
+            for (std::vector<Otc::Direction>::iterator dir = limitedPath.begin(); dir != limitedPath.end(); dir++) {
+                if (currentPos.isInRange(m_lastAutoWalkPosition, 1, 1)) {
+                    limitedPath.erase(dir, limitedPath.end());
+                    m_lastAutoWalkPosition = currentPos;
+                    break;
+                }
+                currentPos = currentPos.translatedToDirection(*dir);
+            }
+        }
+    }
 
     m_autoWalkDestination = destination;
-    m_lastAutoWalkPosition = m_position.translatedToDirections(limitedPath).back();
+    m_autoWalkFlags = flags;
 
     /*
     // debug calculated path using minimap
@@ -219,8 +244,10 @@ bool LocalPlayer::autoWalk(const Position& destination)
         g_map.notificateTileUpdate(pos);
     }
     */
-
-    g_game.autoWalk(limitedPath);
+    if (manual)
+    	g_game.manualWalk(limitedPath);
+    else
+	    g_game.autoWalk(limitedPath);
     return true;
 }
 
@@ -228,6 +255,7 @@ void LocalPlayer::stopAutoWalk()
 {
     m_autoWalkDestination = Position();
     m_lastAutoWalkPosition = Position();
+    m_autoWalkFlags = 0;
     m_knownCompletePath = false;
 
     if(m_autoWalkContinueEvent)
@@ -311,8 +339,8 @@ void LocalPlayer::onPositionChange(const Position& newPos, const Position& oldPo
 
     if(newPos == m_autoWalkDestination)
         stopAutoWalk();
-    else if(m_autoWalkDestination.isValid() && newPos == m_lastAutoWalkPosition)
-        autoWalk(m_autoWalkDestination);
+    else if(m_autoWalkDestination.isValid() && (newPos == m_lastAutoWalkPosition || newPos.z != oldPos.z))
+        autoWalk(m_autoWalkDestination, m_autoWalkFlags);
 }
 
 void LocalPlayer::setStates(int states)

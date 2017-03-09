@@ -672,4 +672,13 @@ void Tile::checkTranslucentLight()
         tile->m_flags &= ~TILESTATE_TRANSLUECENT_LIGHT;
 }
 
+int Tile::getFloorChange() {
+    for(const ThingPtr& thing : m_things) {
+        int floorChange = thing->getThingType()->getFloorChange();
+        if (floorChange != Otc::FloorChangeNone)
+            return floorChange;
+    }
+    return Otc::FloorChangeNone;
+}
+
 /* vim: set ts=4 sw=4 et :*/

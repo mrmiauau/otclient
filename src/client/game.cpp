@@ -528,7 +528,7 @@ void Game::processWalkCancel(Otc::Direction direction)
     m_localPlayer->cancelWalk(direction);
 }
 
-void Game::loginWorld(const std::string& account, const std::string& password, const std::string& worldName, const std::string& worldHost, int worldPort, const std::string& characterName, const std::string& authenticatorToken, const std::string& sessionKey)
+void Game::loginWorld(const std::string& account, const std::string& password, const std::string& worldName, const std::string& worldHost, int worldPort, const std::string& characterName, const std::string& authenticatorToken, const std::string& sessionKey, const uint16& protoNum)
 {
     if(m_protocolGame || isOnline())
         stdext::throw_exception("Unable to login into a world while already online or logging.");
@@ -543,7 +543,7 @@ void Game::loginWorld(const std::string& account, const std::string& password, c
     m_localPlayer->setName(characterName);
 
     m_protocolGame = ProtocolGamePtr(new ProtocolGame);
-    m_protocolGame->login(account, password, worldHost, (uint16)worldPort, characterName, authenticatorToken, sessionKey);
+    m_protocolGame->login(account, password, worldHost, (uint16)worldPort, characterName, authenticatorToken, sessionKey, protoNum);
     m_characterName = characterName;
     m_worldName = worldName;
 }
@@ -776,6 +776,8 @@ void Game::stop()
         cancelFollow();
 
     m_protocolGame->sendStop();
+
+    m_walkDirs.clear();
 }
 
 void Game::look(const ThingPtr& thing, bool isBattleList)
@@ -924,13 +926,13 @@ void Game::refreshContainer(const ContainerPtr& container)
     m_protocolGame->sendRefreshContainer(container->getId());
 }
 
-void Game::attack(CreaturePtr creature)
+void Game::attack(CreaturePtr creature, bool ignoreAttacking)
 {
     if(!canPerformGameAction() || creature == m_localPlayer)
         return;
 
     // cancel when attacking again
-    if(creature && creature == m_attackingCreature)
+    if(!ignoreAttacking && creature && creature == m_attackingCreature)
         creature = nullptr;
 
     if(creature && isFollowing())
@@ -1738,4 +1740,44 @@ int Game::getOs()
         return 12;
     else // linux
         return 11;
+}
+
+void Game::manualWalk(std::vector<Otc::Direction> dirs)
+{
+    if(!canPerformGameAction())
+        return;
+
+
+    if(dirs.size() == 0)
+        return;
+
+    // must cancel follow before any new walk
+    m_walkDirs = dirs;
+
+    if(isFollowing())
+        cancelFollow();
+
+    manualWalkEvent();
+}
+
+
+void Game::manualWalkEvent()
+{
+	if (m_walkDirs.size() == 0)
+		return;
+
+	auto it = m_walkDirs.begin();
+    Otc::Direction direction = *it;
+
+    if (walk(direction, false))
+	    m_walkDirs.erase(it);
+
+    if(m_walkEvent) {
+        m_walkEvent->cancel();
+        m_walkEvent = nullptr;
+    }
+
+    m_walkEvent = g_dispatcher.scheduleEvent([] { 
+    	g_game.manualWalkEvent();
+    }, 50);
 }

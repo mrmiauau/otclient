@@ -72,19 +72,24 @@ bool Protocol::isConnecting()
 void Protocol::send(const OutputMessagePtr& outputMessage)
 {
     // encrypt
-    if(m_xteaEncryptionEnabled)
+    int disableFeatures = callLuaField<int>("onSendPre", outputMessage);
+    if(m_xteaEncryptionEnabled && !(disableFeatures&1)) {
         xteaEncrypt(outputMessage);
+        callLuaField("onSendPost", outputMessage);
+    }
 
     // write checksum
-    if(m_checksumEnabled)
+    if(m_checksumEnabled && !(disableFeatures&3))
         outputMessage->writeChecksum();
 
     // wirte message size
     outputMessage->writeMessageSize();
 
     // send
-    if(m_connection)
+    if (m_connection) {
         m_connection->write(outputMessage->getHeaderBuffer(), outputMessage->getMessageSize());
+
+    }
 
     // reset message to allow reuse
     outputMessage->reset();

@@ -61,8 +61,12 @@ function connect(object, arg1, arg2, arg3)
         end
       end
     end
-
-    if not object[signal] then
+    local hasValue = object[signal] ~= nil
+    local meta = getmetatable(object)
+    if meta and meta.__index and type(meta.__index) == 'table' then
+      hasValue = object[signal] ~= meta.__index[signal]
+    end
+    if not object[signal] or not hasValue then
       object[signal] = slot
     elseif type(object[signal]) == 'function' then
       object[signal] = { object[signal] }
@@ -360,6 +364,32 @@ function makesingleton(obj)
     end
   end
   return singleton
+end
+
+function printContents(...)
+  local arg = {...}
+  local pv = {}
+  function parsep(t, tabs) 
+    local str = ''
+    local pvt = #pv+1
+    if type(t) == 'table' then
+      if table.contains(pv, t) then
+        return tabs .. type(t) .. ' - ' .. tostring(t) .. ' (recurrency found)'
+      end
+      pv[pvt] = t
+      str = tabs .. type(t)
+      for a, b in pairs(t) do 
+        str = str .. '\n' .. tabs .. a .. ' - ' .. parsep(b, tabs .. '  ')
+      end
+      pv[pvt] = nil
+    else
+      str = str .. tabs .. type(t) .. ' - ' .. tostring(t)
+    end
+    return str
+  end
+  for _,t in ipairs(arg) do
+    print(parsep(t, ''))
+  end
 end
 
 -- @}

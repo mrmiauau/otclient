@@ -118,10 +118,10 @@ function EnterGame.init()
   local port = g_settings.get('port')
   local stayLogged = g_settings.getBoolean('staylogged')
   local autologin = g_settings.getBoolean('autologin')
-  local clientVersion = g_settings.getInteger('client-version')
-  if clientVersion == 0 then clientVersion = 1074 end
+  local clientVersion = g_settings.get('client-version')
+  if not clientVersion then clientVersion = "1074" end
 
-  if port == nil or port == 0 then port = 7171 end
+  if not port then port = 7171 end
 
   EnterGame.setAccountName(account)
   EnterGame.setPassword(password)
@@ -135,11 +135,9 @@ function EnterGame.init()
   for _, proto in pairs(g_game.getSupportedClients()) do
     clientBox:addOption(proto)
   end
-  clientBox:setCurrentOption(clientVersion)
-
-  EnterGame.toggleAuthenticatorToken(clientVersion, true)
-  EnterGame.toggleStayLoggedBox(clientVersion, true)
+  
   connect(clientBox, { onOptionChange = EnterGame.onClientVersionChange })
+  clientBox:setCurrentOption(clientVersion)
 
   enterGame:hide()
 
@@ -289,6 +287,12 @@ end
 
 function EnterGame.onClientVersionChange(comboBox, text, data)
   local clientVersion = tonumber(text)
+  if specialServers[text] then
+    server = specialServers[text]
+    clientVersion = server.version
+    enterGame:getChildById('serverHostTextEdit'):setText(tostring(server.ip))
+    enterGame:getChildById('serverPortTextEdit'):setText(tostring(server.port))
+  end
   EnterGame.toggleAuthenticatorToken(clientVersion)
   EnterGame.toggleStayLoggedBox(clientVersion)
 end
@@ -301,6 +305,14 @@ function EnterGame.doLogin()
   G.host = enterGame:getChildById('serverHostTextEdit'):getText()
   G.port = tonumber(enterGame:getChildById('serverPortTextEdit'):getText())
   local clientVersion = tonumber(clientBox:getText())
+  local specialServer = specialServers[clientBox:getText()]
+  if specialServer then
+    clientVersion = specialServer.version
+    modules.game_things.setFileName(specialServer.things)
+  else
+    modules.game_things.setFileName(nil)
+  end
+
   EnterGame.hide()
 
   if g_game.isOnline() then
@@ -311,7 +323,7 @@ function EnterGame.doLogin()
 
   g_settings.set('host', G.host)
   g_settings.set('port', G.port)
-  g_settings.set('client-version', clientVersion)
+  g_settings.set('client-version', clientBox:getText())
 
   protocolLogin = ProtocolLogin.create()
   protocolLogin.onLoginError = onError
@@ -326,13 +338,28 @@ function EnterGame.doLogin()
                                   protocolLogin:cancelLogin()
                                   EnterGame.show()
                                 end })
-
   g_game.setClientVersion(clientVersion)
+  if specialServer then
+    modules.game_things.load()
+  end
   g_game.setProtocolVersion(g_game.getClientProtocolVersion(clientVersion))
+  g_game.setRsa(OTSERV_RSA)
   g_game.chooseRsa(G.host)
-
+  for k, v in pairs(specialServers) do
+    disconnect(ProtocolGame, { onSendPre = v.hookPre, onSendPost = v.hookPost })
+  end
+  if specialServer then
+    if specialServer.rsa then g_game.setRsa(specialServer.rsa) end
+    G.pic = specialServer.pic
+    G.proto = specialServer.proto
+    g_game.enableFeature(specialServer.feature)
+    connect(ProtocolGame, { onSendPre = specialServer.hookPre, onSendPost = specialServer.hookPost })
+  else
+    g_game.setRsa(OTSERV_RSA)
+  end
+  
   if modules.game_things.isLoaded() then
-    protocolLogin:login(G.host, G.port, G.account, G.password, G.authenticatorToken, G.stayLogged)
+    protocolLogin:login(G.host, G.port, G.account, G.password, G.authenticatorToken, G.stayLogged, G.pic, G.proto)
   else
     loadBox:destroy()
     loadBox = nil

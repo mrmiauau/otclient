@@ -52,6 +52,10 @@ public:
     std::vector<int> getXteaKey();
     void enableXteaEncryption() { m_xteaEncryptionEnabled = true; }
 
+	void enableTibijka() { m_tibijka = true; }
+
+	void setRareTibiaXor(uint32 newXor) { m_rareTibiaXor = newXor; }
+
     void enableChecksum() { m_checksumEnabled = true; }
 
     virtual void send(const OutputMessagePtr& outputMessage);
@@ -75,6 +79,9 @@ private:
 
     bool m_checksumEnabled;
     bool m_xteaEncryptionEnabled;
+	bool m_tibijka;
+	uint32 m_rareTibiaXor;
+
     ConnectionPtr m_connection;
     InputMessagePtr m_inputMessage;
 };

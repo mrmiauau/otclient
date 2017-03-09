@@ -15,7 +15,7 @@ LoginServerExtendedCharacterList = 101
 LoginServerRetry = 10
 LoginServerErrorNew = 11
 
-function ProtocolLogin:login(host, port, accountName, accountPassword, authenticatorToken, stayLogged)
+function ProtocolLogin:login(host, port, accountName, accountPassword, authenticatorToken, stayLogged, picNum, protoNum)
   if string.len(host) == 0 or port == nil or port == 0 then
     signalcall(self.onLoginError, self, tr("You must enter a valid server address and port."))
     return
@@ -27,6 +27,9 @@ function ProtocolLogin:login(host, port, accountName, accountPassword, authentic
   self.stayLogged = stayLogged
   self.connectCallback = self.sendLoginPacket
 
+  self.picNum = picNum
+  self.protoNum = protoNum
+
   self:connect(host, port)
 end
 
@@ -37,29 +40,39 @@ end
 function ProtocolLogin:sendLoginPacket()
   local msg = OutputMessage.create()
   msg:addU8(ClientOpcodes.ClientEnterAccount)
-  msg:addU16(g_game.getOs())
+  if self.protoNum then
+    msg:addU16(2)
+    msg:addU16(self.protoNum)
+  else
+    msg:addU16(g_game.getOs())
+    msg:addU16(g_game.getProtocolVersion())
+  end
 
-  msg:addU16(g_game.getProtocolVersion())
-
-  if g_game.getFeature(GameClientVersion) then
+  if g_game.getFeature(GameClientVersion) then -- 980
     msg:addU32(g_game.getClientVersion())
   end
 
-  if g_game.getFeature(GameContentRevision) then
+  if g_game.getFeature(GameContentRevision) then --1071
     msg:addU16(g_things.getContentRevision())
     msg:addU16(0)
   else
     msg:addU32(g_things.getDatSignature())
   end
   msg:addU32(g_sprites.getSprSignature())
-  msg:addU32(PIC_SIGNATURE)
+  
+  if self.picNum then
+    msg:addU32(self.picNum)
+  else
+    msg:addU32(PIC_SIGNATURE)
+  end
 
-  if g_game.getFeature(GamePreviewState) then
+
+  if g_game.getFeature(GamePreviewState) then -- 980
     msg:addU8(0)
   end
 
   local offset = msg:getMessageSize()
-  if g_game.getFeature(GameLoginPacketEncryption) then
+  if g_game.getFeature(GameLoginPacketEncryption) then -- 770
     -- first RSA byte must be 0
     msg:addU8(0)
 
@@ -72,7 +85,7 @@ function ProtocolLogin:sendLoginPacket()
     msg:addU32(xteaKey[4])
   end
 
-  if g_game.getFeature(GameAccountNames) then
+  if g_game.getFeature(GameAccountNames) then -- 840
     msg:addString(self.accountName)
   else
     msg:addU32(tonumber(self.accountName))
@@ -95,7 +108,7 @@ function ProtocolLogin:sendLoginPacket()
     msg:encryptRsa()
   end
 
-  if g_game.getFeature(GameOGLInformation) then
+  if g_game.getFeature(GameOGLInformation) then --1061
     msg:addU8(1) --unknown
     msg:addU8(1) --unknown
 
@@ -108,7 +121,7 @@ function ProtocolLogin:sendLoginPacket()
   end
 
   -- add RSA encrypted auth token
-  if g_game.getFeature(GameAuthenticator) then
+  if g_game.getFeature(GameAuthenticator) then --1072
     offset = msg:getMessageSize()
 
     -- first RSA byte must be 0
@@ -128,7 +141,7 @@ function ProtocolLogin:sendLoginPacket()
     msg:encryptRsa()
   end
 
-  if g_game.getFeature(GameProtocolChecksum) then
+  if g_game.getFeature(GameProtocolChecksum) then --840
     self:enableChecksum()
   end
 

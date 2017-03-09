@@ -203,9 +203,12 @@ public:
 
     std::vector<int> getSprites() { return m_spritesIndex; }
 
+    int getFloorChange() { return m_floorChange; }
+
     // additional
     float getOpacity() { return m_opacity; }
     bool isNotPreWalkable() { return m_attribs.has(ThingAttrNotPreWalkable); }
+    Position getFloorChangeDestination(Position pos);
 
 private:
     const TexturePtr& getTexture(int animationPhase);
@@ -229,6 +232,8 @@ private:
     int m_elevation;
     float m_opacity;
     std::string m_customImage;
+
+    int m_floorChange;
 
     std::vector<int> m_spritesIndex;
     std::vector<TexturePtr> m_textures;

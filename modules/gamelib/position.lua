@@ -35,3 +35,7 @@ end
 function Position.manhattanDistance(pos1, pos2)
   return math.abs(pos2.x - pos1.x) + math.abs(pos2.y - pos1.y)
 end
+
+function Position.toString(p)
+  return tostring(p.x) .. ' ' .. tostring(p.y) .. ' ' .. tostring(p.z)
+end

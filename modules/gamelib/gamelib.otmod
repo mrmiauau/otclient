@@ -14,6 +14,7 @@ Module
     dofile 'protocollogin'
     dofile 'protocolgame'
     dofile 'position'
+    dofile 'servers'
     dofile 'game'
 
     dofile 'creature'

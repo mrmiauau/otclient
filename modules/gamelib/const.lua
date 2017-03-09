@@ -261,6 +261,7 @@ PathFindFlags = {
   AllowCreatures = 2,
   AllowNonPathable = 4,
   AllowNonWalkable = 8,
+  MultiFloor = 16,
 }
 
 VipState = {
@@ -320,6 +321,13 @@ StoreState = {
   New = 1,
   Sale = 2,
   Timed = 3
+}
+
+FloorChange = {
+  None = 0,
+  Down = 1,
+  Up = 2,
+  Action = 4
 }
 
 -- @}

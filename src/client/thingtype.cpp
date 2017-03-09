@@ -45,6 +45,7 @@ ThingType::ThingType()
     m_layers = 0;
     m_elevation = 0;
     m_opacity = 1.0f;
+    m_floorChange = 0;
 }
 
 void ThingType::serialize(const FileStreamPtr& fin)
@@ -367,6 +368,32 @@ void ThingType::unserializeOtml(const OTMLNodePtr& node)
                 m_attribs.set(ThingAttrFullGround, true);
             else
                 m_attribs.remove(ThingAttrFullGround);
+        } else if(node2->tag() == "floorchange") {
+            if(node2->value() == "north")
+                m_floorChange |= Otc::FloorChangeNorth | Otc::FloorChangeUp;
+            else if(node2->value() == "east")
+                m_floorChange |= Otc::FloorChangeEast | Otc::FloorChangeUp;
+            else if(node2->value() == "south")
+                m_floorChange |= Otc::FloorChangeSouth | Otc::FloorChangeUp;
+            else if(node2->value() == "west")
+                m_floorChange |= Otc::FloorChangeWest | Otc::FloorChangeUp;
+            else if(node2->value() == "northex")
+                m_floorChange |= Otc::FloorChangeNorth | Otc::FloorChangeUp | Otc::FloorChangeEx;
+            else if(node2->value() == "eastex")
+                m_floorChange |= Otc::FloorChangeEast | Otc::FloorChangeUp | Otc::FloorChangeEx;
+            else if(node2->value() == "southex")
+                m_floorChange |= Otc::FloorChangeSouth | Otc::FloorChangeUp | Otc::FloorChangeEx;
+            else if(node2->value() == "westex")
+                m_floorChange |= Otc::FloorChangeWest | Otc::FloorChangeUp | Otc::FloorChangeEx;
+            else if(node2->value() == "down")
+                m_floorChange |= Otc::FloorChangeDown;
+            else if(node2->value() == "up")
+                m_floorChange |= Otc::FloorChangeUp;
+        } else if (node2->tag() == "floorchangeaction") {
+            if(node2->value<bool>())
+                m_floorChange |= Otc::FloorChangeAction;
+            else
+                m_floorChange &= 255 - Otc::FloorChangeAction;
         }
     }
 }
@@ -563,4 +590,33 @@ int ThingType::getExactSize(int layer, int xPattern, int yPattern, int zPattern,
     int frameIndex = getTextureIndex(layer, xPattern, yPattern, zPattern);
     Size size = m_texturesFramesOriginRects[animationPhase][frameIndex].size() - m_texturesFramesOffsets[animationPhase][frameIndex].toSize();
     return std::max<int>(size.width(), size.height());
+}
+
+
+Position ThingType::getFloorChangeDestination(Position pos)
+{
+    int delta = 1;
+
+    if (m_floorChange & Otc::FloorChangeEx)
+        delta = 2;
+
+    if (m_floorChange & Otc::FloorChangeDown)
+        pos.z++;
+
+    if (m_floorChange & Otc::FloorChangeUp)
+        pos.z--;
+
+    if (m_floorChange & Otc::FloorChangeNorth)
+        pos.y -= delta;
+
+    if (m_floorChange & Otc::FloorChangeEast)
+        pos.x += delta;
+
+    if (m_floorChange & Otc::FloorChangeSouth)
+        pos.y += delta;
+
+    if (m_floorChange & Otc::FloorChangeWest)
+        pos.x -= delta;
+
+    return pos;
 }

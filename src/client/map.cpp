@@ -744,7 +744,7 @@ std::tuple<std::vector<Otc::Direction>, Otc::PathFindResult> Map::findPath(const
         return ret;
     }
 
-    if(startPos.z != goalPos.z) {
+    if(!(flags & Otc::PathFindMultiFloor) && (startPos.z != goalPos.z)) {
         result = Otc::PathFindResultImpossible;
         return ret;
     }
@@ -752,7 +752,7 @@ std::tuple<std::vector<Otc::Direction>, Otc::PathFindResult> Map::findPath(const
     // check the goal pos is walkable
     if(g_map.isAwareOfPosition(goalPos)) {
         const TilePtr goalTile = getTile(goalPos);
-        if(!goalTile || !goalTile->isWalkable()) {
+        if(!goalTile || !goalTile->isWalkable(flags & Otc::PathFindAllowCreatures)) {
             return ret;
         }
     }
@@ -786,21 +786,47 @@ std::tuple<std::vector<Otc::Direction>, Otc::PathFindResult> Map::findPath(const
 
         for(int i=-1;i<=1;++i) {
             for(int j=-1;j<=1;++j) {
-                if(i == 0 && j == 0)
-                    continue;
+                Position neighborPos = currentNode->pos.translated(i, j);
+                Otc::Direction walkDir = currentNode->pos.getDirectionFromPosition(neighborPos);
+                if(i == 0 && j == 0) {
+                    if (!(flags & Otc::PathFindMultiFloor))
+                        continue;
+
+                    int floorChange = Otc::FloorChangeNone;
+
+                    if(g_map.isAwareOfPosition(currentNode->pos)) {
+                        if(const TilePtr& tile = getTile(currentNode->pos)) {
+                            floorChange = tile->getFloorChange();
+                        }
+                    } else {
+                        const MinimapTile& mtile = g_minimap.getTile(neighborPos);
+                        floorChange = mtile.getFloorChange();
+                    }
+                    
+                    if (floorChange == Otc::FloorChangeNone)
+                        continue;
+
+                    walkDir = Otc::InvalidDirection;
+
+                    if (floorChange & Otc::FloorChangeUp)
+                        neighborPos.up(1);
+
+                    if (floorChange & Otc::FloorChangeDown)
+                        neighborPos.down(1);
+                }
 
                 bool wasSeen = false;
                 bool hasCreature = false;
                 bool isNotWalkable = true;
                 bool isNotPathable = true;
                 int speed = 100;
+                int floorChange = Otc::FloorChangeNone;
 
-                Position neighborPos = currentNode->pos.translated(i, j);
                 if(g_map.isAwareOfPosition(neighborPos)) {
                     wasSeen = true;
                     if(const TilePtr& tile = getTile(neighborPos)) {
                         hasCreature = tile->hasCreature();
-                        isNotWalkable = !tile->isWalkable();
+                        isNotWalkable = !tile->isWalkable(flags & Otc::PathFindAllowCreatures);
                         isNotPathable = !tile->isPathable();
                         speed = tile->getGroundSpeed();
                     }
@@ -812,30 +838,33 @@ std::tuple<std::vector<Otc::Direction>, Otc::PathFindResult> Map::findPath(const
                     if(isNotWalkable || isNotPathable)
                         wasSeen = true;
                     speed = mtile.getSpeed();
+                    floorChange = mtile.getFloorChange();
                 }
 
-                float walkFactor = 0;
-                if(neighborPos != goalPos) {
-                    if(!(flags & Otc::PathFindAllowNotSeenTiles) && !wasSeen)
+                if(!(flags & Otc::PathFindAllowNotSeenTiles) && !wasSeen)
+                    continue;
+
+                if(wasSeen && !(flags & Otc::PathFindAllowNonWalkable) && isNotWalkable)
+                    continue;
+                
+                if (floorChange != Otc::FloorChangeNone && neighborPos != goalPos && ((flags & Otc::PathFindMultiFloor) || !(floorChange & Otc::FloorChangeAction))) {
+                    // we probably don't want to change floor if PathFindMultiFloor is not given
+                    if (!(flags & Otc::PathFindMultiFloor))
                         continue;
+                }
+
+                if(neighborPos != goalPos) {
                     if(wasSeen) {
                         if(!(flags & Otc::PathFindAllowCreatures) && hasCreature)
                             continue;
-                        if(!(flags & Otc::PathFindAllowNonPathable) && isNotPathable)
-                            continue;
-                        if(!(flags & Otc::PathFindAllowNonWalkable) && isNotWalkable)
-                            continue;
-                    }
-                } else {
-                    if(!(flags & Otc::PathFindAllowNotSeenTiles) && !wasSeen)
-                        continue;
-                    if(wasSeen) {
-                        if(!(flags & Otc::PathFindAllowNonWalkable) && isNotWalkable)
+
+                        // allow walking over non-pathable stairs
+                        if(!(flags & Otc::PathFindAllowNonPathable) && isNotPathable && (!(flags & Otc::PathFindMultiFloor) || floorChange == Otc::FloorChangeNone))
                             continue;
                     }
                 }
 
-                Otc::Direction walkDir = currentNode->pos.getDirectionFromPosition(neighborPos);
+                float walkFactor = 0;
                 if(walkDir >= Otc::NorthEast)
                     walkFactor += 3.0f;
                 else
@@ -871,12 +900,457 @@ std::tuple<std::vector<Otc::Direction>, Otc::PathFindResult> Map::findPath(const
     if(foundNode) {
         currentNode = foundNode;
         while(currentNode) {
+            Node *previousNode = currentNode->prev;
+            if (previousNode && currentNode->pos.z != previousNode->pos.z) {
+                dirs.clear();
+
+            } 
             dirs.push_back(currentNode->dir);
+
             currentNode = currentNode->prev;
         }
         dirs.pop_back();
         std::reverse(dirs.begin(), dirs.end());
         result = Otc::PathFindResultOk;
+    }
+
+    for(auto it : nodes)
+        delete it.second;
+
+    return ret;
+}
+
+
+
+bool Map::checkSightLine(const Position& fromPos, const Position& toPos)
+{
+    uint16 startx = fromPos.x, starty = fromPos.y, startz = fromPos.z;
+    uint16 endx = toPos.x, endy = toPos.y, endz = toPos.z;
+
+    int32_t x, y, z, dx = std::abs(startx - endx), dy = std::abs(starty - endy),
+        dz = std::abs(startz - endz), sx, sy, sz, ey, ez, max = dx, dir = 0;
+    if(dy > max)
+    {
+        max = dy;
+        dir = 1;
+    }
+
+    if(dz > max)
+    {
+        max = dz;
+        dir = 2;
+    }
+
+    switch(dir)
+    {
+        case 1:
+            //x -> y
+            //y -> x
+            //z -> z
+            std::swap(startx, starty);
+            std::swap(endx, endy);
+            std::swap(dx, dy);
+            break;
+        case 2:
+            //x -> z
+            //y -> y
+            //z -> x
+            std::swap(startx, startz);
+            std::swap(endx, endz);
+            std::swap(dx, dz);
+            break;
+        default:
+            //x -> x
+            //y -> y
+            //z -> z
+            break;
+    }
+
+    sx = ((startx < endx) ? 1 : -1);
+    sy = ((starty < endy) ? 1 : -1);
+    sz = ((startz < endz) ? 1 : -1);
+
+    ey = ez = 0;
+    x = startx;
+    y = starty;
+    z = startz;
+
+    int32_t lastrx = 0, lastry = 0, lastrz = 0;
+    for(; x != endx + sx; x += sx)
+    {
+        int32_t rx, ry, rz;
+        switch(dir)
+        {
+            case 1:
+                rx = y; ry = x; rz = z;
+                break;
+            case 2:
+                rx = z; ry = y; rz = x;
+                break;
+            default:
+                rx = x; ry = y; rz = z;
+                break;
+        }
+
+        if(!lastrx && !lastry && !lastrz)
+        {
+            lastrx = rx;
+            lastry = ry;
+            lastrz = rz;
+        }
+
+        if(lastrz != rz || ((toPos.x != rx || toPos.y != ry || toPos.z != rz) && (fromPos.x != rx || fromPos.y != ry || fromPos.z != rz)))
+        {
+            if(lastrz != rz && getTile({(uint16)lastrx, (uint16)lastry, (uint8)std::min(lastrz, rz)}))
+                return false;
+
+            lastrx = rx; lastry = ry; lastrz = rz;
+            TilePtr tile = getTile({(uint16)rx, (uint16)ry, (uint8)rz});
+            if (tile && !tile->isLookPossible())
+                return false;
+        }
+
+        ey += dy;
+        ez += dz;
+        if(2 * ey >= dx)
+        {
+            y += sy;
+            ey -= dx;
+        }
+
+        if(2 * ez >= dx)
+        {
+            z += sz;
+            ez -= dx;
+        }
+    }
+
+    return true;
+}
+
+bool Map::isSightClear(const Position& fromPos, const Position& toPos, bool floorCheck)
+{
+    if(floorCheck && fromPos.z != toPos.z)
+        return false;
+
+    // Cast two converging rays and see if either yields a result.
+    return checkSightLine(fromPos, toPos) || checkSightLine(toPos, fromPos);
+}
+
+
+TilePtr Map::getBestDistanceTile(std::vector<CreaturePtr> creatures, int distance, bool autoWalk = false, bool walkNonPathable = false)
+{
+    // pathfinding using A* search algorithm
+    // as described in http://en.wikipedia.org/wiki/A*_search_algorithm
+    if (creatures.empty()) {
+        return nullptr;
+    }
+
+    LocalPlayerPtr player = g_game.getLocalPlayer();
+    Position playerPos = player->getPosition();
+    struct Node {
+        Node(const Position& pos) : cost(1e6), creatureCost(1e6), currentCreatureCost(1e6), potential(1e6), minDistance(1e6), pos(pos), prev(nullptr), dir(Otc::InvalidDirection) { }
+        float cost;
+        float creatureCost;
+        float currentCreatureCost;
+        float potential;
+        float minDistance;
+        inline float getDistance() const {
+            return getDistance(cost, minDistance);
+        };
+        static float getDistance(const float &cost, const float &minDistance) {
+            return cost - minDistance*0.9;
+        };
+        Position pos;
+        Node *prev;
+        Otc::Direction dir;
+    };
+
+    const int MAX_DISTNACE = 14;
+
+    struct LessNode : std::binary_function<std::pair<Node*, float>, std::pair<Node*, float>, bool> {
+        bool operator()(std::pair<Node*, float> a, std::pair<Node*, float> b) const {
+            return b.second < a.second;
+        }
+    };
+    std::vector<Node*> nodesByDistance[1000];
+
+    std::unordered_map<Position, Node*, PositionHasher> nodes;
+    std::priority_queue<std::pair<Node*, float>, std::vector<std::pair<Node*, float>>, LessNode> searchList;
+
+    std::set<Position> unawarePositions;
+
+    Node *currentNode = nullptr;
+    for (auto creature : creatures) {
+        if (!creature->getSpeed()) // do not count creatures standing still, or we'll get NaN
+            continue;
+
+        std::vector<Node*> nodesToClear;
+
+        const Position creaturePos = creature->getPosition();
+        if(nodes.find(creaturePos) == nodes.end()) {
+            currentNode = new Node(creaturePos);
+            nodes[creaturePos] = currentNode;
+        } else {
+            currentNode = nodes[creaturePos];
+        }
+        currentNode->currentCreatureCost = 0;
+
+        while(currentNode) { // calculating creatureCost
+            nodesToClear.push_back(currentNode);
+
+            for(int i=-1;i<=1;++i) {
+                for(int j=-1;j<=1;++j) {
+                    if(i == 0 && j == 0)
+                        continue;
+
+                    Position neighborPos = currentNode->pos.translated(i, j);
+
+                    int sqDistance = std::max(std::abs(playerPos.x - neighborPos.x), std::abs(playerPos.y - neighborPos.y));
+                    if (sqDistance >= MAX_DISTNACE)
+                        continue;
+
+                    const TilePtr& tile = getTile(neighborPos);
+                    if (!tile) {
+                        unawarePositions.insert(neighborPos);
+                    }
+                    if(!tile || !tile->isWalkable(true))
+                        continue;
+
+                    float walkFactor = currentNode->pos.getDirectionFromPosition(neighborPos) >= Otc::NorthEast ? 3.0f : 1.0f;
+                    float cost = currentNode->currentCreatureCost + (tile->getGroundSpeed() * walkFactor) / (float)creature->getSpeed() * (float)player->getSpeed() / 100.0f;
+
+                    Node *neighborNode;
+                    if(nodes.find(neighborPos) == nodes.end()) {
+                        neighborNode = new Node(neighborPos);
+                        nodes[neighborPos] = neighborNode;
+                    } else {
+                        neighborNode = nodes[neighborPos];
+                        if(neighborNode->currentCreatureCost <= cost) {
+                            continue;
+                        }
+                    }
+
+                    neighborNode->currentCreatureCost = cost;
+                    if (neighborNode->creatureCost > cost)
+                        neighborNode->creatureCost = cost;
+
+                    searchList.push(std::make_pair(neighborNode, neighborNode->currentCreatureCost));
+                }
+            }
+
+            if(!searchList.empty()) {
+                currentNode = searchList.top().first;
+                searchList.pop();
+            } else
+                currentNode = nullptr;
+        }
+
+        for (auto node : nodesToClear) 
+            node->currentCreatureCost = 1e6;
+
+        nodesToClear.clear();
+    }
+
+    for (auto it : nodes) {
+        if(int(it.second->creatureCost) < 1000)
+            nodesByDistance[int(it.second->creatureCost)].emplace_back(it.second);
+    }
+    int distances = 2;
+
+    for (int distance = 1000-1; distance >= 0; distance--) {
+        if (!nodesByDistance[distance].empty()) {
+            if (distances-- > 0) {
+                for (auto node : nodesByDistance[distance]) {
+                    if (currentNode)
+                        searchList.push(std::make_pair(currentNode, 0));
+
+                    currentNode = node;
+                    currentNode->potential = 0;
+                }
+
+
+            }
+        }
+    }
+    for (auto it : nodesByDistance)
+        it.clear();
+
+    for (const auto &pos : unawarePositions) {
+        if (currentNode)
+            searchList.push(std::make_pair(currentNode, 0));
+        if(nodes.find(pos) == nodes.end()) {
+            currentNode = new Node(pos);
+            nodes[pos] = currentNode;
+        } else {
+            currentNode = nodes[pos];
+        }
+        currentNode->potential = 0;
+    }
+
+    while(currentNode) { // calculating runaway potential
+        for(int i=-1;i<=1;++i) {
+            for(int j=-1;j<=1;++j) {
+                if(i == 0 && j == 0)
+                    continue;
+
+                Position neighborPos = currentNode->pos.translated(i, j);
+                int sqDistance = std::max(std::abs(playerPos.x - neighborPos.x), std::abs(playerPos.y - neighborPos.y));
+                if (sqDistance >= MAX_DISTNACE)
+                    continue;
+
+                const TilePtr& tile = getTile(neighborPos);
+                if(!tile || !tile->isWalkable(neighborPos == playerPos)) // ignore creatures only if it is current player pos
+                    continue;
+
+                float walkFactor = currentNode->pos.getDirectionFromPosition(neighborPos) >= Otc::NorthEast ? 3.0f : 1.0f;
+
+                float cost = currentNode->potential + (tile->getGroundSpeed() * walkFactor) / 100.0f;
+
+                Node *neighborNode;
+                if(nodes.find(neighborPos) == nodes.end()) {
+                    neighborNode = new Node(neighborPos);
+                    nodes[neighborPos] = neighborNode;
+                } else {
+                    neighborNode = nodes[neighborPos];
+                    if(neighborNode->potential <= cost)
+                        continue;
+                }
+
+                neighborNode->potential = cost;
+                searchList.push(std::make_pair(neighborNode, neighborNode->potential));
+            }
+        }
+
+        if(!searchList.empty()) {
+            currentNode = searchList.top().first;
+            searchList.pop();
+        } else
+            currentNode = nullptr;
+    }
+
+    if(nodes.find(playerPos) == nodes.end()) {
+        currentNode = new Node(playerPos);
+        nodes[playerPos] = currentNode;
+    } else {
+        currentNode = nodes[playerPos];
+    }
+
+    Node* currentPosNode = currentNode;
+
+    currentNode->cost = 0;
+    currentNode->minDistance = currentNode->creatureCost;
+
+    while(currentNode) {
+        for(int i=-1;i<=1;++i) {
+            for(int j=-1;j<=1;++j) {
+                if(i == 0 && j == 0)
+                    continue;
+
+                Position neighborPos = currentNode->pos.translated(i, j);
+
+                int sqDistance = std::max(std::abs(playerPos.x - neighborPos.x), std::abs(playerPos.y - neighborPos.y));
+                if (sqDistance >= MAX_DISTNACE)
+                    continue;
+
+                const TilePtr& tile = getTile(neighborPos);
+                if(!tile) 
+                    continue;
+
+                // ignore not walkable tiles, not pathable tiles and floorchange tiles that do not require action
+                if(!tile->isWalkable() || (!walkNonPathable && !tile->isPathable()) || (tile->getFloorChange() && !(tile->getFloorChange() & Otc::FloorChangeAction)))
+                    continue;
+
+                
+                Otc::Direction walkDir = currentNode->pos.getDirectionFromPosition(neighborPos);
+
+                float walkFactor = (walkDir >= Otc::NorthEast) ? 3.0f : 1.0f;
+                float cost = currentNode->cost + (tile->getGroundSpeed() * walkFactor) / 100.0f;
+
+                Node *neighborNode;
+                if(nodes.find(neighborPos) == nodes.end()) {
+                    neighborNode = new Node(neighborPos);
+                    nodes[neighborPos] = neighborNode;
+                } else {
+                    neighborNode = nodes[neighborPos];   
+                }
+                float minDistance = std::min(currentNode->minDistance, neighborNode->creatureCost - cost);
+
+                if(neighborNode->prev && neighborNode->getDistance() <= Node::getDistance(cost, minDistance))
+                    continue;
+
+                neighborNode->prev = currentNode;
+                neighborNode->cost = cost;
+                neighborNode->dir = walkDir;
+                neighborNode->minDistance = minDistance;
+
+                searchList.push(std::make_pair(neighborNode, neighborNode->getDistance()));
+            }
+        }
+
+        if(!searchList.empty()) {
+            currentNode = searchList.top().first;
+            searchList.pop();
+        } else
+            currentNode = nullptr;
+    }
+    Node *bestNode = NULL;
+    float bestNodeScore = 1e7;
+    for (auto &it : nodes) {
+        Node *node = it.second;
+        if (node->cost >= 1e6) continue;
+        float score = node->cost + node->potential*1.5 + (currentPosNode->minDistance - node->minDistance)*2;
+
+        int sqDistance = 1<<30;
+        for (auto creature : creatures) {
+            const Position creaturePos = creature->getPosition();
+            int creatureDist = std::max(std::abs(creaturePos.x - it.first.x), std::abs(creaturePos.y - it.first.y));
+            if (creatureDist < sqDistance)
+                sqDistance = creatureDist;
+        }    
+        score += std::abs(sqDistance - distance)*4;
+
+        if (!isSightClear(node->pos, creatures[0]->getPosition()))
+            score += 3;
+
+        if (!bestNode || score < bestNodeScore) {
+            bestNode = node;
+            bestNodeScore = score;
+        }
+
+        /*std::ostringstream scoreText;
+        score -= score - ((int)(score*10))/10.f;
+        scoreText << std::defaultfloat << score;
+        bool mustAdd = true;
+        for(auto other : m_staticTexts) {
+            // try to combine messages
+            if(other->getPosition() == node->pos) {
+                other->setText(scoreText.str());
+                mustAdd = false;
+                break;
+            }
+        }
+        if (mustAdd) {
+            StaticTextPtr staticText = StaticTextPtr(new StaticText);
+            staticText->addMessage("", Otc::MessageBarkLoud, scoreText.str());
+            g_map.addThing(staticText, node->pos, -1);
+        }*/
+    }
+
+    TilePtr ret = getTile(bestNode->pos);
+    if (autoWalk) {
+        currentNode = bestNode;
+        std::vector<Otc::Direction> dirs;
+
+        while(currentNode) {
+            dirs.push_back(currentNode->dir);
+            currentNode = currentNode->prev;
+        }
+        dirs.pop_back();
+        std::reverse(dirs.begin(), dirs.end());
+        if (dirs.size()) {
+            g_game.manualWalk(dirs);
+        }
     }
 
     for(auto it : nodes)

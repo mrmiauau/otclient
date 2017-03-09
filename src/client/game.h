@@ -159,7 +159,7 @@ protected:
 
 public:
     // login related
-    void loginWorld(const std::string& account, const std::string& password, const std::string& worldName, const std::string& worldHost, int worldPort, const std::string& characterName, const std::string& authenticatorToken, const std::string& sessionKey);
+    void loginWorld(const std::string& account, const std::string& password, const std::string& worldName, const std::string& worldHost, int worldPort, const std::string& characterName, const std::string& authenticatorToken, const std::string& sessionKey, const uint16& protoNum);
     void cancelLogin();
     void forceLogout();
     void safeLogout();
@@ -190,7 +190,7 @@ public:
     void refreshContainer(const ContainerPtr& container);
 
     // attack/follow related
-    void attack(CreaturePtr creature);
+    void attack(CreaturePtr creature, bool ignoreAttacking = false);
     void cancelAttack() { attack(nullptr); }
     void follow(CreaturePtr creature);
     void cancelFollow() { follow(nullptr); }
@@ -351,6 +351,8 @@ public:
     std::string formatCreatureName(const std::string &name);
     int findEmptyContainerId();
 
+    void manualWalk(std::vector<Otc::Direction> dirs);
+
 protected:
     void enableBotCall() { m_denyBotCall = false; }
     void disableBotCall() { m_denyBotCall = true; }
@@ -358,6 +360,7 @@ protected:
 private:
     void setAttackingCreature(const CreaturePtr& creature);
     void setFollowingCreature(const CreaturePtr& creature);
+	void manualWalkEvent();
 
     LocalPlayerPtr m_localPlayer;
     CreaturePtr m_attackingCreature;
@@ -398,6 +401,7 @@ private:
     int m_clientVersion;
     std::string m_clientSignature;
     int m_clientCustomOs;
+    std::vector<Otc::Direction> m_walkDirs;
 };
 
 extern Game g_game;

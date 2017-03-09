@@ -432,7 +432,8 @@ namespace Otc
         PathFindAllowNotSeenTiles = 1,
         PathFindAllowCreatures = 2,
         PathFindAllowNonPathable = 4,
-        PathFindAllowNonWalkable = 8
+        PathFindAllowNonWalkable = 8,
+        PathFindMultiFloor = 16
     };
 
     enum AutomapFlags {
@@ -505,6 +506,19 @@ namespace Otc
         StateNew = 1,
         StateSale = 2,
         StateTimed = 3
+    };
+
+    
+    enum FloorChange {
+        FloorChangeNone = 0,
+        FloorChangeDown = 1,
+        FloorChangeUp = 2,
+        FloorChangeAction = 4,
+        FloorChangeNorth = 8,
+        FloorChangeEast = 16,
+        FloorChangeSouth = 32,
+        FloorChangeWest = 64,
+        FloorChangeEx = 128
     };
 }
 

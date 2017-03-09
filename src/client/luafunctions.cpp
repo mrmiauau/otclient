@@ -122,6 +122,7 @@ void Client::registerLuaFunctions()
     g_lua.bindSingletonFunction("g_map", "getCreatureById", &Map::getCreatureById, &g_map);
     g_lua.bindSingletonFunction("g_map", "removeCreatureById", &Map::removeCreatureById, &g_map);
     g_lua.bindSingletonFunction("g_map", "getSpectators", &Map::getSpectators, &g_map);
+    g_lua.bindSingletonFunction("g_map", "getSpectatorsInRange", &Map::getSpectatorsInRange, &g_map);
     g_lua.bindSingletonFunction("g_map", "findPath", &Map::findPath, &g_map);
     g_lua.bindSingletonFunction("g_map", "loadOtbm", &Map::loadOtbm, &g_map);
     g_lua.bindSingletonFunction("g_map", "saveOtbm", &Map::saveOtbm, &g_map);
@@ -153,7 +154,10 @@ void Client::registerLuaFunctions()
     g_lua.bindSingletonFunction("g_map", "beginGhostMode", &Map::beginGhostMode, &g_map);
     g_lua.bindSingletonFunction("g_map", "endGhostMode", &Map::endGhostMode, &g_map);
     g_lua.bindSingletonFunction("g_map", "findItemsById", &Map::findItemsById, &g_map);
-
+    g_lua.bindSingletonFunction("g_map", "isSightClear", &Map::isSightClear, &g_map);
+    g_lua.bindSingletonFunction("g_map", "getBestDistanceTile", &Map::getBestDistanceTile, &g_map);
+    g_lua.bindSingletonFunction("g_map", "isAwareOfPosition", &Map::isAwareOfPosition, &g_map);
+    
     g_lua.registerSingletonClass("g_minimap");
     g_lua.bindSingletonFunction("g_minimap", "clean", &Minimap::clean, &g_minimap);
     g_lua.bindSingletonFunction("g_minimap", "loadImage", &Minimap::loadImage, &g_minimap);
@@ -351,6 +355,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Container>("hasPages", &Container::hasPages);
     g_lua.bindClassMemberFunction<Container>("getSize", &Container::getSize);
     g_lua.bindClassMemberFunction<Container>("getFirstIndex", &Container::getFirstIndex);
+    g_lua.bindClassMemberFunction<Container>("findItemById", &Container::findItemById);
 
     g_lua.registerClass<Thing>();
     g_lua.bindClassMemberFunction<Thing>("setId", &Thing::setId);
@@ -552,6 +557,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<ThingType>("getSprites", &ThingType::getSprites);
     g_lua.bindClassMemberFunction<ThingType>("hasAttribute", &ThingType::hasAttr);
     g_lua.bindClassMemberFunction<ThingType>("exportImage", &ThingType::exportImage);
+    g_lua.bindClassMemberFunction<ThingType>("getFloorChange", &ThingType::getFloorChange);
 
     g_lua.registerClass<Item, Thing>();
     g_lua.bindClassStaticFunction<Item>("create", &Item::create);
@@ -694,6 +700,7 @@ void Client::registerLuaFunctions()
     g_lua.bindClassMemberFunction<Tile>("setFlags", &Tile::setFlags);
     g_lua.bindClassMemberFunction<Tile>("getFlags", &Tile::getFlags);
     g_lua.bindClassMemberFunction<Tile>("hasFlag", &Tile::hasFlag);
+    g_lua.bindClassMemberFunction<Tile>("getFloorChange", &Tile::getFloorChange);
 
     g_lua.registerClass<UIItem, UIWidget>();
     g_lua.bindClassStaticFunction<UIItem>("create", []{ return UIItemPtr(new UIItem); });

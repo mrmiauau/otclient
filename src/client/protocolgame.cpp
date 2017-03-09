@@ -26,13 +26,14 @@
 #include "item.h"
 #include "localplayer.h"
 
-void ProtocolGame::login(const std::string& accountName, const std::string& accountPassword, const std::string& host, uint16 port, const std::string& characterName, const std::string& authenticatorToken, const std::string& sessionKey)
+void ProtocolGame::login(const std::string& accountName, const std::string& accountPassword, const std::string& host, uint16 port, const std::string& characterName, const std::string& authenticatorToken, const std::string& sessionKey, const uint16& protoNum)
 {
     m_accountName = accountName;
     m_accountPassword = accountPassword;
     m_authenticatorToken = authenticatorToken;
     m_sessionKey = sessionKey;
     m_characterName = characterName;
+    m_protoNum = protoNum;
 
     connect(host, port);
 }

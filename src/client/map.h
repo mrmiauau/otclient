@@ -241,9 +241,14 @@ public:
     std::vector<AnimatedTextPtr> getAnimatedTexts() { return m_animatedTexts; }
     std::vector<StaticTextPtr> getStaticTexts() { return m_staticTexts; }
 
-    std::tuple<std::vector<Otc::Direction>, Otc::PathFindResult> findPath(const Position& start, const Position& goal, int maxComplexity, int flags = 0);
+    std::tuple<std::vector<Otc::Direction>, Otc::PathFindResult> findPath(const Position& start, const Position& goal, int maxComplexity, int flags);
+
+    bool isSightClear(const Position& fromPos, const Position& toPos, bool floorCheck = true);
+
+    TilePtr getBestDistanceTile(std::vector<CreaturePtr> creatures, int distance, bool autoWalk, bool walkNonPathable);
 
 private:
+    bool checkSightLine(const Position& fromPos, const Position& toPos);
     void removeUnawareThings();
     uint getBlockIndex(const Position& pos) { return ((pos.y / BLOCK_SIZE) * (65536 / BLOCK_SIZE)) + (pos.x / BLOCK_SIZE); }
 

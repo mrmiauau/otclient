@@ -93,6 +93,7 @@ public:
     ItemPtr getGround();
     int getGroundSpeed();
     uint8 getMinimapColorByte();
+    int getFloorChange();
     int getThingCount() { return m_things.size() + m_effects.size(); }
     bool isPathable();
     bool isWalkable(bool ignoreCreatures = false);

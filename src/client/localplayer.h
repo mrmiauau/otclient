@@ -38,7 +38,7 @@ public:
     void unlockWalk() { m_walkLockExpiration = 0; }
     void lockWalk(int millis = 250);
     void stopAutoWalk();
-    bool autoWalk(const Position& destination);
+    bool autoWalk(const Position& destination, int flags = 0, bool manual = false);
     bool canWalk(Otc::Direction direction);
 
     void setStates(int states);
@@ -121,6 +121,7 @@ private:
     Position m_lastPrewalkDestination;
     Position m_autoWalkDestination;
     Position m_lastAutoWalkPosition;
+    int m_autoWalkFlags;
     ScheduledEventPtr m_serverWalkEndEvent;
     ScheduledEventPtr m_autoWalkContinueEvent;
     ticks_t m_walkLockExpiration;

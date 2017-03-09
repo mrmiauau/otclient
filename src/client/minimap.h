@@ -36,18 +36,20 @@ enum {
 enum MinimapTileFlags {
     MinimapTileWasSeen = 1,
     MinimapTileNotPathable = 2,
-    MinimapTileNotWalkable = 4
+    MinimapTileNotWalkable = 4,
 };
 
 #pragma pack(push,1) // disable memory alignment
 struct MinimapTile
 {
-    MinimapTile() : flags(0), color(255), speed(10) { }
+    MinimapTile() : flags(0), color(255), speed(10), floorChange(0) { }
     uint8 flags;
     uint8 color;
     uint8 speed;
+    uint8 floorChange;
     bool hasFlag(MinimapTileFlags flag) const { return flags & flag; }
     int getSpeed() const { return speed * 10; }
+    int getFloorChange() const { return floorChange; }
     bool operator==(const MinimapTile& other) const { return color == other.color && flags == other.flags && speed == other.speed; }
     bool operator!=(const MinimapTile& other) const { return !(*this == other); }
 };

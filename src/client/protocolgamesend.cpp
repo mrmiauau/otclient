@@ -30,8 +30,6 @@
 void ProtocolGame::send(const OutputMessagePtr& outputMessage)
 {
     // avoid usage of automated sends (bot modules)
-    if(!g_game.checkBotProtection())
-        return;
     Protocol::send(outputMessage);
 }
 
@@ -52,17 +50,22 @@ void ProtocolGame::sendLoginPacket(uint challengeTimestamp, uint8 challengeRando
 {
     OutputMessagePtr msg(new OutputMessage);
 
-    msg->addU8(Proto::ClientPendingGame);
-    msg->addU16(g_game.getOs());
-    msg->addU16(g_game.getProtocolVersion());
+    msg->addU8(Proto::ClientPendingGame); 
+    if (m_protoNum) {
+        msg->addU16(2);
+        msg->addU16(m_protoNum);
+    } else {
+        msg->addU16(g_game.getOs());
+        msg->addU16(g_game.getProtocolVersion());
+    }
 
-    if(g_game.getFeature(Otc::GameClientVersion))
+    if(g_game.getFeature(Otc::GameClientVersion)) // 980
         msg->addU32(g_game.getClientVersion());
 
-    if(g_game.getFeature(Otc::GameContentRevision))
+    if(g_game.getFeature(Otc::GameContentRevision)) // 1071
         msg->addU16(g_things.getContentRevision());
 
-    if(g_game.getFeature(Otc::GamePreviewState))
+    if(g_game.getFeature(Otc::GamePreviewState)) // 980
         msg->addU8(0);
 
     int offset = msg->getMessageSize();
@@ -118,8 +121,9 @@ void ProtocolGame::sendLoginPacket(uint challengeTimestamp, uint8 challengeRando
 
     send(msg);
 
-    if(g_game.getFeature(Otc::GameLoginPacketEncryption))
+    if(g_game.getFeature(Otc::GameLoginPacketEncryption)) {
         enableXteaEncryption();
+    }
 }
 
 void ProtocolGame::sendEnterGame()

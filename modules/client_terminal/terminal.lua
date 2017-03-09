@@ -330,33 +330,33 @@ function executeCommand(command)
   end
 
   -- detect and convert commands with simple syntax
-  local realCommand
-  if string.sub(command, 1, 1) == '=' then
-    realCommand = 'print(' .. string.sub(command,2) .. ')'
-  else
-    realCommand = command
-  end
+  function MyDoCommand(command)
+    local func, err = loadstring(command, "@")
 
-  local func, err = loadstring(realCommand, "@")
-
-  -- detect terminal commands
-  if not func then
+    -- detect terminal commands
+    if not func then
     local command_name = command:match('^([%w_]+)[%s]*.*')
     if command_name then
       local args = string.split(command:match('^[%w_]+[%s]*(.*)'), ' ')
       if commandEnv[command_name] and type(commandEnv[command_name]) == 'function' then
-        func = function() modules.client_terminal.commandEnv[command_name](unpack(args)) end
+      func = function() modules.client_terminal.commandEnv[command_name](unpack(args)) end
       elseif command_name == command then
-        addLine('ERROR: command not found', 'red')
-        return
+      return false, false
       end
     end
+    end
+    return func, err
   end
-
+  
+  local func, err = MyDoCommand('printContents(' ..command..')')
   -- check for syntax errors
+  if (not func) or err then
+  func, err = MyDoCommand(command)
+  end
+  
   if not func then
-    addLine('ERROR: incorrect lua syntax: ' .. err:sub(5), 'red')
-    return
+  addLine('ERROR: incorrect lua syntax: ' .. err:sub(5), 'red')
+  return
   end
 
   -- setup func env to commandEnv

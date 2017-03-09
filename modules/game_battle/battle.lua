@@ -73,7 +73,7 @@ function init()
     onAppear = onCreatureAppear,
     onDisappear = onCreatureDisappear
   })
-
+  
   connect(LocalPlayer, {
     onPositionChange = onCreaturePositionChange
   })
