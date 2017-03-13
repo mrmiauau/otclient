@@ -32,6 +32,7 @@
 
 #include <framework/core/eventdispatcher.h>
 #include <framework/core/application.h>
+#include <set>
 
 Map g_map;
 TilePtr Map::m_nulltile;
