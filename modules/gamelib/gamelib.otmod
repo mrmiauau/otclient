@@ -12,6 +12,7 @@ Module
     dofile 'util'
     dofile 'protocol'
     dofile 'protocollogin'
+    dofile 'protocolloginhttp'
     dofile 'protocolgame'
     dofile 'position'
     dofile 'servers'

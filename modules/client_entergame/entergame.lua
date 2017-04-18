@@ -304,11 +304,16 @@ function EnterGame.doLogin()
   G.stayLogged = enterGame:getChildById('stayLoggedBox'):isChecked()
   G.host = enterGame:getChildById('serverHostTextEdit'):getText()
   G.port = tonumber(enterGame:getChildById('serverPortTextEdit'):getText())
+  G.url = nil
+
   local clientVersion = tonumber(clientBox:getText())
   local specialServer = specialServers[clientBox:getText()]
   if specialServer then
     clientVersion = specialServer.version
     modules.game_things.setFileName(specialServer.things)
+    if specialServer.url then
+      G.url = specialServer.url
+    end
   else
     modules.game_things.setFileName(nil)
   end
@@ -324,8 +329,12 @@ function EnterGame.doLogin()
   g_settings.set('host', G.host)
   g_settings.set('port', G.port)
   g_settings.set('client-version', clientBox:getText())
-
-  protocolLogin = ProtocolLogin.create()
+  if G.url then
+    protocolLogin = ProtocolLoginHttp.create()
+    protocolLogin:setUrl(G.url)
+  else
+    protocolLogin = ProtocolLogin.create()
+  end
   protocolLogin.onLoginError = onError
   protocolLogin.onMotd = onMotd
   protocolLogin.onSessionKey = onSessionKey
