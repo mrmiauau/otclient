@@ -313,6 +313,7 @@ function EnterGame.doLogin()
     modules.game_things.setFileName(specialServer.things)
     if specialServer.url then
       G.url = specialServer.url
+      G.host = specialServer.url
     end
   else
     modules.game_things.setFileName(nil)
