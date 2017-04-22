@@ -774,6 +774,8 @@ void Creature::addTimedSquare(uint8 color)
     m_showTimedSquare = true;
     m_timedSquareColor = Color::from8bit(color);
 
+    callLuaField("onTimedSquare", color);
+
     // schedule removal
     auto self = static_self_cast<Creature>();
     g_dispatcher.scheduleEvent([self]() {
