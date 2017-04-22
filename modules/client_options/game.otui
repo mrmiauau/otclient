@@ -27,6 +27,10 @@ Panel
     !text: tr('Show left panel')
 
   OptionCheckBox
+    id: showSecondRightPanel
+    !text: tr('Show second right panel')
+
+  OptionCheckBox
     id: displayNames
     !text: tr('Display creature names')
 

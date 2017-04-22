@@ -3,6 +3,7 @@ WALK_STEPS_RETRY = 10
 gameRootPanel = nil
 gameMapPanel = nil
 gameRightPanel = nil
+gameSecondRightPanel = nil
 gameLeftPanel = nil
 gameBottomPanel = nil
 logoutButton = nil
@@ -50,6 +51,7 @@ function init()
   bottomSplitter = gameRootPanel:getChildById('bottomSplitter')
   gameMapPanel = gameRootPanel:getChildById('gameMapPanel')
   gameRightPanel = gameRootPanel:getChildById('gameRightPanel')
+  gameSecondRightPanel = gameRootPanel:getChildById('gameSecondRightPanel')
   gameLeftPanel = gameRootPanel:getChildById('gameLeftPanel')
   gameBottomPanel = gameRootPanel:getChildById('gameBottomPanel')
   connect(gameLeftPanel, { onVisibilityChange = onLeftPanelVisibilityChange })
@@ -803,6 +805,10 @@ function getRightPanel()
   return gameRightPanel
 end
 
+function getSecondRightPanel()
+  return gameSecondRightPanel
+end
+
 function getLeftPanel()
   return gameLeftPanel
 end
@@ -829,7 +835,7 @@ function setupViewMode(mode)
 
   if currentViewMode == 2 then
     gameMapPanel:addAnchor(AnchorLeft, 'gameLeftPanel', AnchorRight)
-    gameMapPanel:addAnchor(AnchorRight, 'gameRightPanel', AnchorLeft)
+    gameMapPanel:addAnchor(AnchorRight, 'gameSecondRightPanel', AnchorLeft)
     gameMapPanel:addAnchor(AnchorBottom, 'gameBottomPanel', AnchorTop)
     gameRootPanel:addAnchor(AnchorTop, 'topMenu', AnchorBottom)
     gameLeftPanel:setOn(modules.client_options.getOption('showLeftPanel'))
@@ -839,6 +845,9 @@ function setupViewMode(mode)
     gameRightPanel:setMarginTop(0)
     gameBottomPanel:setImageColor('white')
     modules.client_topmenu.getTopMenu():setImageColor('white')
+    gameSecondRightPanel:setMarginTop(0)
+    gameSecondRightPanel:setImageColor('white')
+    gameSecondRightPanel:setOn(modules.client_options.getOption('showSecondRightPanel'))
     g_game.changeMapAwareRange(18, 14)
   end
 
@@ -861,10 +870,15 @@ function setupViewMode(mode)
     gameRootPanel:fill('parent')
     gameLeftPanel:setImageColor('alpha')
     gameRightPanel:setImageColor('alpha')
+    gameSecondRightPanel:setImageColor('alpha')
     gameLeftPanel:setMarginTop(modules.client_topmenu.getTopMenu()
       :getHeight() - gameLeftPanel:getPaddingTop())
     gameRightPanel:setMarginTop(modules.client_topmenu.getTopMenu()
       :getHeight() - gameRightPanel:getPaddingTop())
+    gameSecondRightPanel:setMarginTop(modules.client_topmenu.getTopMenu()
+      :getHeight() - gameSecondRightPanel:getPaddingTop())
+    gameSecondRightPanel:setOn(true)
+    gameSecondRightPanel:setVisible(true)
     gameLeftPanel:setOn(true)
     gameLeftPanel:setVisible(true)
     gameRightPanel:setOn(true)

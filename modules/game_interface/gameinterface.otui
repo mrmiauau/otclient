@@ -60,6 +60,18 @@ UIWidget
     focusable: false
     on: true
 
+  GameSidePanel
+    id: gameSecondRightPanel
+    anchors.right: gameRightPanel.left
+    anchors.top: parent.top
+    anchors.bottom: parent.bottom
+    focusable: false
+    visible: true
+    on: true
+    $!on:
+      width: 0
+      visible: false
+
   Splitter
     id: bottomSplitter
     anchors.left: gameLeftPanel.right

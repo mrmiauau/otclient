@@ -15,6 +15,7 @@ local defaultOptions = {
   showPrivateMessagesInConsole = true,
   showPrivateMessagesOnScreen = true,
   showLeftPanel = false,
+  showSecondRightPanel = false,
   foregroundFrameRate = 61,
   backgroundFrameRate = 201,
   painterEngine = 0,
@@ -198,6 +199,8 @@ function setOption(key, value, force)
     audioPanel:getChildById('musicSoundVolumeLabel'):setText(tr('Music volume: %d', value))
   elseif key == 'showLeftPanel' then
     modules.game_interface.getLeftPanel():setOn(value)
+  elseif key == 'showSecondRightPanel' then
+    modules.game_interface.getSecondRightPanel():setOn(value)
   elseif key == 'backgroundFrameRate' then
     local text, v = value, value
     if value <= 0 or value >= 201 then text = 'max' v = 0 end
